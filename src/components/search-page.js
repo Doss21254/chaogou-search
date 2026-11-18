@@ -44,14 +44,17 @@ function highlight(text, keyword) {
 }
 
 function skeletonMarkup(count = 8) {
-  return Array.from({ length: count }, () => `
+  return Array.from(
+    { length: count },
+    () => `
     <article class="skeleton-card" aria-hidden="true">
       <div class="skeleton-block skeleton-img"></div>
       <div class="skeleton-block skeleton-line"></div>
       <div class="skeleton-block skeleton-line short"></div>
       <div class="skeleton-block skeleton-price"></div>
     </article>
-  `).join('');
+  `
+  ).join('');
 }
 
 function productMarkup(item, keyword) {
@@ -68,7 +71,10 @@ function productMarkup(item, keyword) {
         <span class="product-sales">已售 ${item.sales}</span>
       </div>
       <div class="product-tags">
-        ${item.tags.slice(0, 3).map((t) => `<span class="product-tag">${escapeHtml(t)}</span>`).join('')}
+        ${item.tags
+          .slice(0, 3)
+          .map((t) => `<span class="product-tag">${escapeHtml(t)}</span>`)
+          .join('')}
         ${lowStock ? '<span class="product-tag warn">库存紧张</span>' : ''}
       </div>
       <div class="price-row">
@@ -219,7 +225,8 @@ export function mountSearchPage(root) {
       el.categories.innerHTML = [
         `<button class="chip active" type="button" data-category="" aria-pressed="true">全部</button>`,
         ...CATEGORY_ORDER.filter((c) => stats.categories[c]).map(
-          (c) => `<button class="chip" type="button" data-category="${c}" aria-pressed="false">${escapeHtml(stats.categories[c])}<span class="chip-count">${counts[c] ?? 0}</span></button>`
+          (c) =>
+            `<button class="chip" type="button" data-category="${c}" aria-pressed="false">${escapeHtml(stats.categories[c])}<span class="chip-count">${counts[c] ?? 0}</span></button>`
         ),
       ].join('');
     })

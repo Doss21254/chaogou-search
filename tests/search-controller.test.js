@@ -230,7 +230,9 @@ describe('SearchController 竞态处理', () => {
   });
 
   it('loading 期间会拒绝重复的 loadMore', async () => {
-    mockSearch.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(makeResponse('x', 300)), 300)));
+    mockSearch.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(makeResponse('x', 300)), 300))
+    );
 
     const controller = new SearchController({ debounceMs: 50 });
     controller.setKeyword('x');

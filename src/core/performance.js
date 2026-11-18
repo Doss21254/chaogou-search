@@ -200,10 +200,7 @@ export class RequestSequencer {
  * @returns {boolean}
  */
 export function isAbortError(error) {
-  return (
-    error instanceof DOMException &&
-    (error.name === 'AbortError' || error.code === 20)
-  );
+  return error instanceof DOMException && (error.name === 'AbortError' || error.code === 20);
 }
 
 /**

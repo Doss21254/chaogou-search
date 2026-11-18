@@ -116,11 +116,66 @@ function seed() {
   if (count > 0) return;
 
   const names = {
-    fashion: ['轻薄连帽外套', '夏季时尚短裙', '宽松阔腿裤', '纯棉圆领T恤', '防风冲锋衣', '真皮短靴', '羊毛混纺大衣', '亚麻衬衫', '运动束脚裤', '针织开衫'],
-    digital: ['降噪蓝牙耳机', '无线充电底座', '机械键盘', '高刷电竞显示器', '便携移动电源', '智能手表', 'USB-C 扩展坞', '降噪头戴耳机', '桌面路由器', '固态移动硬盘'],
-    home: ['智能护眼台灯', '记忆棉枕头', '全棉四件套', '静音落地扇', '香薰加湿器', '免安装收纳柜', '多层鞋架', '厨房沥水篮', '实木餐桌椅', '遮光窗帘'],
-    food: ['手冲咖啡豆', '低脂鸡胸肉', '云南野生菌菇', '冷萃茶包', '坚果大礼包', '手工黑巧克力', '即食燕麦片', '古法红糖', '深海鳕鱼块', '气泡水'],
-    sports: ['专业跑步鞋', '碳纤维登山杖', '加厚瑜伽垫', '速干运动T恤', '折叠健身车', '登山背包', '泳镜防雾套装', '筋膜枪', '羽毛球拍', '露营帐篷'],
+    fashion: [
+      '轻薄连帽外套',
+      '夏季时尚短裙',
+      '宽松阔腿裤',
+      '纯棉圆领T恤',
+      '防风冲锋衣',
+      '真皮短靴',
+      '羊毛混纺大衣',
+      '亚麻衬衫',
+      '运动束脚裤',
+      '针织开衫',
+    ],
+    digital: [
+      '降噪蓝牙耳机',
+      '无线充电底座',
+      '机械键盘',
+      '高刷电竞显示器',
+      '便携移动电源',
+      '智能手表',
+      'USB-C 扩展坞',
+      '降噪头戴耳机',
+      '桌面路由器',
+      '固态移动硬盘',
+    ],
+    home: [
+      '智能护眼台灯',
+      '记忆棉枕头',
+      '全棉四件套',
+      '静音落地扇',
+      '香薰加湿器',
+      '免安装收纳柜',
+      '多层鞋架',
+      '厨房沥水篮',
+      '实木餐桌椅',
+      '遮光窗帘',
+    ],
+    food: [
+      '手冲咖啡豆',
+      '低脂鸡胸肉',
+      '云南野生菌菇',
+      '冷萃茶包',
+      '坚果大礼包',
+      '手工黑巧克力',
+      '即食燕麦片',
+      '古法红糖',
+      '深海鳕鱼块',
+      '气泡水',
+    ],
+    sports: [
+      '专业跑步鞋',
+      '碳纤维登山杖',
+      '加厚瑜伽垫',
+      '速干运动T恤',
+      '折叠健身车',
+      '登山背包',
+      '泳镜防雾套装',
+      '筋膜枪',
+      '羽毛球拍',
+      '露营帐篷',
+    ],
   };
   const brands = ['星辰', '拓野', '云鲸', '极光', '远山', '轻舟', '松野', '海风', '木白', '岩灰'];
 
@@ -128,12 +183,8 @@ function seed() {
     INSERT INTO products (name, category, brand, price, sales, rating, stock, tags)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const insertFts = db.prepare(
-    'INSERT INTO product_fts(rowid, name, brand, tags) VALUES (?, ?, ?, ?)'
-  );
-  const insertBigram = db.prepare(
-    'INSERT OR IGNORE INTO product_bigram (bigram, product_id) VALUES (?, ?)'
-  );
+  const insertFts = db.prepare('INSERT INTO product_fts(rowid, name, brand, tags) VALUES (?, ?, ?, ?)');
+  const insertBigram = db.prepare('INSERT OR IGNORE INTO product_bigram (bigram, product_id) VALUES (?, ?)');
 
   db.exec('BEGIN');
   let id = 0;
@@ -192,15 +243,7 @@ function extractBigrams(text) {
  * @returns {{ items: object[], total: number, costMs: number }}
  */
 export function searchProducts(query = {}) {
-  const {
-    keyword = '',
-    category = '',
-    sort = 'default',
-    pageSize,
-    limit,
-    page,
-    offset,
-  } = query;
+  const { keyword = '', category = '', sort = 'default', pageSize, limit, page, offset } = query;
 
   // 统一分页参数：既支持 page/pageSize，也支持 limit/offset
   const effectiveLimit = Number(pageSize ?? limit ?? 20);
@@ -233,12 +276,13 @@ export function searchProducts(query = {}) {
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-  const orderSql = {
-    default: 'p.sales DESC, p.id DESC',
-    sales: 'p.sales DESC',
-    price_asc: 'p.price ASC',
-    price_desc: 'p.price DESC',
-  }[sort] || 'p.sales DESC, p.id DESC';
+  const orderSql =
+    {
+      default: 'p.sales DESC, p.id DESC',
+      sales: 'p.sales DESC',
+      price_asc: 'p.price ASC',
+      price_desc: 'p.price DESC',
+    }[sort] || 'p.sales DESC, p.id DESC';
 
   const countSql = `SELECT COUNT(*) AS c FROM ${from} ${whereSql}`;
   const total = db.prepare(countSql).get(...params).c;
@@ -256,8 +300,12 @@ export function searchProducts(query = {}) {
 
   // 记录慢查询（超过 50ms），便于后续做索引优化
   if (costMs > 50) {
-    db.prepare('INSERT INTO search_log (keyword, category, hit_count, cost_ms) VALUES (?, ?, ?, ?)')
-      .run(kw, category || null, total, costMs);
+    db.prepare('INSERT INTO search_log (keyword, category, hit_count, cost_ms) VALUES (?, ?, ?, ?)').run(
+      kw,
+      category || null,
+      total,
+      costMs
+    );
   }
 
   return {
@@ -325,9 +373,11 @@ export function explainSearch(params = {}) {
 
 /** 最近的慢查询日志 */
 export function getSlowQueries(limit = 10) {
-  return db.prepare(
-    'SELECT keyword, category, hit_count, cost_ms, created_at FROM search_log ORDER BY id DESC LIMIT ?'
-  ).all(limit);
+  return db
+    .prepare(
+      'SELECT keyword, category, hit_count, cost_ms, created_at FROM search_log ORDER BY id DESC LIMIT ?'
+    )
+    .all(limit);
 }
 
 /** 数据库统计信息 */

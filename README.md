@@ -33,15 +33,15 @@ npm run build        # 生产构建
 
 ## 技术栈
 
-| 层 | 选型 | 说明 |
-| --- | --- | --- |
-| 前端 | 原生 ES Module + Vite | 不引入框架，聚焦搜索链路本身的实现 |
-| 后端 | Node.js 原生 `http` | 零框架依赖，可读性与可讲解性优先 |
-| 数据库 | SQLite（`node:sqlite`） | Node 22 内置，无需安装数据库服务 |
-| 全文检索 | FTS5 `trigram` + 二元组倒排表 | 中文子串检索的双索引方案 |
-| 测试 | Vitest + v8 coverage | 27 个用例，核心模块覆盖率 89% |
-| 规范 | ESLint + Prettier + Husky + lint-staged | 提交前自动检查 |
-| CI | GitHub Actions | lint / format / test / build 四道关卡 |
+| 层       | 选型                                    | 说明                                  |
+| -------- | --------------------------------------- | ------------------------------------- |
+| 前端     | 原生 ES Module + Vite                   | 不引入框架，聚焦搜索链路本身的实现    |
+| 后端     | Node.js 原生 `http`                     | 零框架依赖，可读性与可讲解性优先      |
+| 数据库   | SQLite（`node:sqlite`）                 | Node 22 内置，无需安装数据库服务      |
+| 全文检索 | FTS5 `trigram` + 二元组倒排表           | 中文子串检索的双索引方案              |
+| 测试     | Vitest + v8 coverage                    | 27 个用例，核心模块覆盖率 89%         |
+| 规范     | ESLint + Prettier + Husky + lint-staged | 提交前自动检查                        |
+| CI       | GitHub Actions                          | lint / format / test / build 四道关卡 |
 
 ---
 
@@ -80,7 +80,7 @@ const debouncedSearch = debounce(() => this.#execute(), 300);
 新请求发出时主动取消上一个在途请求，浏览器直接丢弃旧响应，不占用带宽。
 
 ```js
-const { signal, seq } = this.#sequencer.start();  // start() 内部会 abort 上一个
+const { signal, seq } = this.#sequencer.start(); // start() 内部会 abort 上一个
 ```
 
 ### 3. 渲染层：请求序号
@@ -88,7 +88,7 @@ const { signal, seq } = this.#sequencer.start();  // start() 内部会 abort 上
 即使 abort 失败（比如响应已经到达、无法再取消），响应回来时比对序号，非最新直接丢弃。这是兜底防线。
 
 ```js
-if (!this.#sequencer.isCurrent(seq)) return;   // 序号不符 → 绝不渲染
+if (!this.#sequencer.isCurrent(seq)) return; // 序号不符 → 绝不渲染
 ```
 
 三层缺一不可：只有防抖会漏掉乱序响应，只有 abort 在服务端已返回时失效，只有序号则浪费了已取消的请求。
@@ -121,20 +121,20 @@ SELECT * FROM product_fts WHERE product_fts MATCH '蓝牙';     -- → 查不到
 
 ### 最终方案：按关键词长度自动路由
 
-| 关键词长度 | 走哪条路 | 实现 |
-| --- | --- | --- |
-| ≥ 3 字符 | FTS5 trigram 全文索引 | `product_fts` 虚拟表 |
-| ≤ 2 字符 | 二元组倒排表 | `product_bigram(bigram, product_id)` |
+| 关键词长度 | 走哪条路              | 实现                                 |
+| ---------- | --------------------- | ------------------------------------ |
+| ≥ 3 字符   | FTS5 trigram 全文索引 | `product_fts` 虚拟表                 |
+| ≤ 2 字符   | 二元组倒排表          | `product_bigram(bigram, product_id)` |
 
 构建时把每个商品的「名称 + 品牌 + 标签」切成所有相邻二字组合写入倒排表，共 24 万条。查询时按长度自动选择，用户无需感知。
 
 ### 实测对比（1 万条商品）
 
-| 查询方式 | 耗时 | 说明 |
-| --- | --- | --- |
-| `LIKE '%蓝牙%'` | 2.11 ms | 全表扫描，无法走索引 |
-| 二元组倒排索引 | **0.18 ms** | `SEARCH b USING COVERING INDEX` |
-| trigram 全文索引 | 0.66 ms | `SCAN f VIRTUAL TABLE INDEX` |
+| 查询方式         | 耗时        | 说明                            |
+| ---------------- | ----------- | ------------------------------- |
+| `LIKE '%蓝牙%'`  | 2.11 ms     | 全表扫描，无法走索引            |
+| 二元组倒排索引   | **0.18 ms** | `SEARCH b USING COVERING INDEX` |
+| trigram 全文索引 | 0.66 ms     | `SCAN f VIRTUAL TABLE INDEX`    |
 
 倒排索引比全表扫描快 **11.7 倍**。执行计划可验证索引确实生效：
 
@@ -201,12 +201,12 @@ CI 配置了覆盖率阈值（语句 85% / 函数 85% / 分支 80%），不达�
 
 ## 接口
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/api/products` | 搜索商品，支持 `keyword` `category` `sort` `page` `pageSize` |
-| GET | `/api/products/stats` | 分类统计 |
-| GET | `/api/products/slow-queries` | 慢查询日志 |
-| GET | `/api/health` | 健康检查 |
+| 方法 | 路径                         | 说明                                                         |
+| ---- | ---------------------------- | ------------------------------------------------------------ |
+| GET  | `/api/products`              | 搜索商品，支持 `keyword` `category` `sort` `page` `pageSize` |
+| GET  | `/api/products/stats`        | 分类统计                                                     |
+| GET  | `/api/products/slow-queries` | 慢查询日志                                                   |
+| GET  | `/api/health`                | 健康检查                                                     |
 
 响应示例：
 

@@ -42,9 +42,25 @@ const BASE = import.meta.env?.VITE_API_BASE ?? '/api';
  * @param {AbortSignal} [params.signal] 取消信号
  * @returns {Promise<SearchResult>}
  */
-export async function searchProducts({ keyword = '', category = '', sort = 'default', page = 1, pageSize = 20, signal } = {}) {
-  const query = new URLSearchParams({ keyword, category, sort, page: String(page), pageSize: String(pageSize) });
-  const response = await fetch(`${BASE}/products?${query}`, { signal, headers: { Accept: 'application/json' } });
+export async function searchProducts({
+  keyword = '',
+  category = '',
+  sort = 'default',
+  page = 1,
+  pageSize = 20,
+  signal,
+} = {}) {
+  const query = new URLSearchParams({
+    keyword,
+    category,
+    sort,
+    page: String(page),
+    pageSize: String(pageSize),
+  });
+  const response = await fetch(`${BASE}/products?${query}`, {
+    signal,
+    headers: { Accept: 'application/json' },
+  });
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
