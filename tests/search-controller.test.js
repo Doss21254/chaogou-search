@@ -141,6 +141,50 @@ describe('SearchController 竞态处理', () => {
     expect(states.every((s) => s.error === null)).toBe(true);
   });
 
+  it('防抖等待期间旧请求返回不会渲染旧结果', async () => {
+    // 场景：用户输入「蓝牙」→ 请求发出 → 用户改成「羽毛」→ 防抖还没触发
+    //       → 「蓝牙」的响应在防抖等待期返回 → 不应该渲染「蓝牙」的结果
+    mockSearch.mockImplementation(({ keyword, signal }) => {
+      return new Promise((resolve, reject) => {
+        // 「蓝牙」响应慢（200ms），「羽毛」响应快（10ms）
+        const delay = keyword === '蓝牙' ? 200 : 10;
+        const timer = setTimeout(() => resolve(makeResponse(keyword, delay)), delay);
+        signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(new DOMException('aborted', 'AbortError'));
+        });
+      });
+    });
+
+    const controller = new SearchController({ debounceMs: 100 });
+    const states = [];
+    controller.subscribe((s) => states.push({ ...s }));
+
+    // 输入「蓝牙」，等防抖触发，请求发出
+    controller.setKeyword('蓝牙');
+    await vi.advanceTimersByTimeAsync(110); // 防抖 100ms + 一点余量
+
+    // 输入「羽毛」，防抖开始等待（还没触发新请求）
+    controller.setKeyword('羽毛');
+
+    // 此时「蓝牙」的请求还在飞（200ms 延迟），防抖还有 ~100ms
+    // 推进时间到「蓝牙」响应返回（200ms），但还在防抖窗口内
+    await vi.advanceTimersByTimeAsync(200);
+
+    // 检查：此时界面不应该显示「蓝牙」的结果
+    const stateAtThisPoint = states[states.length - 1];
+    const hasStaleResults = stateAtThisPoint.items.some((i) => i.name.includes('蓝牙'));
+    expect(hasStaleResults).toBe(false);
+
+    // 继续推进，防抖触发「羽毛」的请求
+    await vi.advanceTimersByTimeAsync(100);
+
+    // 最终应该显示「羽毛」的结果
+    const final = states[states.length - 1];
+    expect(final.items.some((i) => i.name.includes('羽毛'))).toBe(true);
+    expect(final.items.some((i) => i.name.includes('蓝牙'))).toBe(false);
+  });
+
   it('真实网络错误会进入 error 状态', async () => {
     mockSearch.mockRejectedValue(new Error('服务不可用'));
 

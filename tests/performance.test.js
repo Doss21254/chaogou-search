@@ -176,6 +176,33 @@ describe('RequestSequencer 竞态控制器', () => {
     seq.abort();
     expect(current.signal.aborted).toBe(true);
   });
+
+  it('invalidate 使当前在途请求失效但不创建新请求', () => {
+    const seq = new RequestSequencer();
+
+    const first = seq.start();
+    expect(first.signal.aborted).toBe(false);
+    expect(seq.isCurrent(first.seq)).toBe(true);
+
+    seq.invalidate();
+
+    // 旧请求被取消
+    expect(first.signal.aborted).toBe(true);
+    // 旧序号失效
+    expect(seq.isCurrent(first.seq)).toBe(false);
+    // 没有创建新的 AbortController（signal 为 null）
+    expect(seq.signal).toBe(null);
+  });
+
+  it('invalidate 后 start 拿到的新序号大于旧序号', () => {
+    const seq = new RequestSequencer();
+    const first = seq.start();
+    seq.invalidate();
+    const second = seq.start();
+
+    expect(second.seq).toBeGreaterThan(first.seq);
+    expect(seq.isCurrent(second.seq)).toBe(true);
+  });
 });
 
 describe('isAbortError', () => {

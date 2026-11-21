@@ -111,11 +111,17 @@ export class SearchController {
 
   /**
    * 更新关键词：立即更新 UI 状态，请求交给防抖延后。
+   *
+   * 关键：调用 invalidate() 使上一个在途请求立即失效。
+   * 否则在防抖等待的 300ms 内，旧关键词的响应如果返回，
+   * 会通过序号检查并渲染旧结果——用户看到关键词已变、结果却没变。
    * @param {string} value
    */
   setKeyword(value) {
     this.#state.keyword = value;
     this.#state.page = 1;
+    // 立即作废当前在途请求：abort + 推进序号，旧响应回来时 isCurrent 返回 false
+    this.#sequencer.invalidate();
     this.#patch({ keyword: value, page: 1, requestCount: this.#state.requestCount });
     this.#debouncedSearch();
   }
@@ -152,9 +158,22 @@ export class SearchController {
 
   /** 节流版：滚动事件高频触发，用节流合并到 200ms 一次 */
   #throttledLoadMore = throttle(() => {
-    const root = this.#element?.querySelector('[data-role="scroll-root"]');
-    if (!root) return;
-    const { scrollTop, scrollHeight, clientHeight } = root;
+    // 优先用 [data-role="scroll-root"] 元素的滚动位置（如果有独立滚动容器）
+    // 没有就用 window/document.documentElement（整页滚动）
+    const scrollRoot = this.#element?.querySelector('[data-role="scroll-root"]');
+    let scrollTop, scrollHeight, clientHeight;
+    if (scrollRoot) {
+      scrollTop = scrollRoot.scrollTop;
+      scrollHeight = scrollRoot.scrollHeight;
+      clientHeight = scrollRoot.clientHeight;
+    } else {
+      // 整页滚动：用 documentElement（<html>）的滚动数据
+      const doc = document.documentElement;
+      scrollTop = doc.scrollTop;
+      scrollHeight = doc.scrollHeight;
+      clientHeight = doc.clientHeight;
+    }
+    // 距底部不足 200px 时加载下一页
     if (scrollHeight - scrollTop - clientHeight < 200) {
       this.loadMore();
     }

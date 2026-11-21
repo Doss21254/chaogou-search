@@ -29,8 +29,22 @@ function escapeHtml(text) {
     .replaceAll("'", '&#39;');
 }
 
+/** 正则元字符转义，防止用户输入 [ ( * 等字符导致 RegExp 构造报错 */
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * 高亮关键词：先转义再插入 <mark>，顺序不能反。
+ *
+ * 两层转义缺一不可：
+ *   escapeHtml  —— 防 XSS，把 < > & " ' 转成实体
+ *   escapeRegExp —— 防正则报错，把 [ ] ( ) * + . 等转义
+ *
+ * HTML 转义不处理正则元字符（[ 不会被转义），
+ * 正则转义不处理 HTML 字符（< 不会被转义），
+ * 所以两个都要做，先 HTML 后正则。
+ *
  * @param {string} text
  * @param {string} keyword
  */
@@ -38,7 +52,12 @@ function highlight(text, keyword) {
   const safe = escapeHtml(text);
   const kw = keyword.trim();
   if (!kw) return safe;
-  const pattern = kw.split(/\s+/).filter(Boolean).map(escapeHtml).join('|');
+  // 先 HTML 转义（防 XSS），再正则转义（防 RegExp 报错）
+  const pattern = kw
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => escapeRegExp(escapeHtml(t)))
+    .join('|');
   if (!pattern) return safe;
   return safe.replace(new RegExp(`(${pattern})`, 'gi'), '<mark>$1</mark>');
 }

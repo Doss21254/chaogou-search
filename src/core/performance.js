@@ -190,6 +190,24 @@ export class RequestSequencer {
     this.#controller?.abort();
     this.#controller = null;
   }
+
+  /**
+   * 使当前在途请求失效，但不发起新请求。
+   *
+   * 用在防抖等待期：用户改了关键词但新搜索还没触发，
+   * 这时旧请求如果返回，不应该渲染。
+   * 调用此方法会：
+   *   1. abort 当前在途请求（让浏览器丢弃响应）
+   *   2. 推进 #currentSeq（让旧请求的 isCurrent 返回 false）
+   *
+   * 与 start() 的区别：start() 会创建新的 AbortController，
+   * invalidate() 不会——它只是让旧请求失效，新请求由调用方稍后发起。
+   */
+  invalidate() {
+    this.#controller?.abort();
+    this.#controller = null;
+    this.#currentSeq = ++this.#seq;
+  }
 }
 
 /**
