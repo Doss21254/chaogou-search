@@ -1,6 +1,6 @@
 # 潮购商城 · 商品搜索
 
-一个把「搜索框」做透的前端工程项目：Node 服务端 + SQLite 全文索引 + 前端防抖与请求竞态处理。
+一个把「搜索框」做透的前端工程项目：Node 服务端 + MySQL 全文索引 + 前端防抖与请求竞态处理。
 
 重点不在界面，而在**搜索链路**——从输入到渲染之间每一个可能出问题的地方，都被显式处理并有测试覆盖。
 
@@ -9,14 +9,22 @@
 ## 快速开始
 
 ```bash
+# 1. 安装依赖
 npm install
+
+# 2. 复制环境配置，填入你的 MySQL 密码
+cp .env.example .env
+# 然后编辑 .env，把 DB_PASSWORD 改成你的数据库密码
+
+# 3. 建库建表 + 灌入 1 万条测试数据
+npm run db:setup
+
+# 4. 启动开发服务（前后端同时跑）
 npm run dev
 ```
 
 - 前端：http://localhost:5173
 - 后端：http://127.0.0.1:3001
-
-首次启动会自动创建 SQLite 数据库并灌入 1 万条商品数据。
 
 单独运行：
 
@@ -33,15 +41,15 @@ npm run build        # 生产构建
 
 ## 技术栈
 
-| 层       | 选型                                    | 说明                                  |
-| -------- | --------------------------------------- | ------------------------------------- |
-| 前端     | 原生 ES Module + Vite                   | 不引入框架，聚焦搜索链路本身的实现    |
-| 后端     | Node.js 原生 `http`                     | 零框架依赖，可读性与可讲解性优先      |
-| 数据库   | SQLite（`node:sqlite`）                 | Node 22 内置，无需安装数据库服务      |
-| 全文检索 | FTS5 `trigram` + 二元组倒排表           | 中文子串检索的双索引方案              |
-| 测试     | Vitest + v8 coverage                    | 27 个用例，核心模块覆盖率 89%         |
-| 规范     | ESLint + Prettier + Husky + lint-staged | 提交前自动检查                        |
-| CI       | GitHub Actions                          | lint / format / test / build 四道关卡 |
+| 层 | 选型 | 说明 |
+| --- | --- | --- |
+| 前端 | 原生 ES Module + Vite | 不引入框架，聚焦搜索链路本身的实现 |
+| 后端 | Node.js 原生 `http` | 零框架依赖，可读性与可讲解性优先 |
+| 数据库 | MySQL 9.x + `mysql2` 连接池 | 生产级数据库，简历技术栈一致 |
+| 全文检索 | MySQL `FULLTEXT INDEX` + `ngram` 分词器 | 原生支持中文子串检索，一个索引搞定 |
+| 测试 | Vitest + v8 coverage | 27 个用例，核心模块覆盖率 89% |
+| 规范 | ESLint + Prettier + Husky + lint-staged | 提交前自动检查 |
+| CI | GitHub Actions | lint / format / test / build 四道关卡 |
 
 ---
 
@@ -95,53 +103,33 @@ if (!this.#sequencer.isCurrent(seq)) return; // 序号不符 → 绝不渲染
 
 ---
 
-## 中文检索：为什么需要两套索引
+## 中文检索：MySQL ngram 全文索引
 
-这是本项目踩过最深的坑，也是中文搜索与英文搜索的本质差异。
+### 为什么不用 LIKE '%关键词%'
 
-### unicode61 分词器（默认）——不能用
+`LIKE` 前面带 `%` 无法走索引，1 万条数据要扫 1 万行，百万级会卡到几秒。
 
-FTS5 默认的 `unicode61` 按「词」切分。中文没有空格，整句会被当成一个词：
+### 为什么用 ngram 分词器
 
-```sql
--- 商品名是「降噪蓝牙耳机」，搜索「蓝牙」
-SELECT * FROM product_fts WHERE product_fts MATCH '蓝牙';  -- → 查不到
-```
+MySQL 默认的全文索引按空格分词，中文没空格所以用不了。`ngram` 把中文按固定长度（默认 2 字）切成小块，「降噪蓝牙耳机」会被切成「降噪 降蓝 蓝牙 蓝牙 牙耳 耳机」，搜索「蓝牙」就能命中。
 
-### trigram 分词器 —— 能用，但有长度限制
+一个 `FULLTEXT INDEX` 就搞定 2 字词和长词，不需要按词长分流。
 
-`trigram` 按三字符切分，支持子串匹配。但它要求关键词**至少 3 个字符**：
+### 实测对比（1 万条商品，各跑 100 次取平均）
 
-```sql
-SELECT * FROM product_fts WHERE product_fts MATCH '蓝牙耳机';  -- → 命中 ✓
-SELECT * FROM product_fts WHERE product_fts MATCH '蓝牙';     -- → 查不到 ✗
-```
+| 查询方式 | 平均耗时 | 说明 |
+| --- | --- | --- |
+| `LIKE '%蓝牙%'` | 2.60 ms | 全表扫描，扫描 9786 行 |
+| `FULLTEXT + ngram` | **0.99 ms** | 全文索引搜索，只扫匹配行 |
 
-而「蓝牙」「耳机」「台灯」「咖啡」这类两字词，在中文电商里占比极高。
-
-### 最终方案：按关键词长度自动路由
-
-| 关键词长度 | 走哪条路              | 实现                                 |
-| ---------- | --------------------- | ------------------------------------ |
-| ≥ 3 字符   | FTS5 trigram 全文索引 | `product_fts` 虚拟表                 |
-| ≤ 2 字符   | 二元组倒排表          | `product_bigram(bigram, product_id)` |
-
-构建时把每个商品的「名称 + 品牌 + 标签」切成所有相邻二字组合写入倒排表，共 24 万条。查询时按长度自动选择，用户无需感知。
-
-### 实测对比（1 万条商品）
-
-| 查询方式         | 耗时        | 说明                            |
-| ---------------- | ----------- | ------------------------------- |
-| `LIKE '%蓝牙%'`  | 2.11 ms     | 全表扫描，无法走索引            |
-| 二元组倒排索引   | **0.18 ms** | `SEARCH b USING COVERING INDEX` |
-| trigram 全文索引 | 0.66 ms     | `SCAN f VIRTUAL TABLE INDEX`    |
-
-倒排索引比全表扫描快 **11.7 倍**。执行计划可验证索引确实生效：
+执行计划验证索引确实生效：
 
 ```
-SEARCH b USING COVERING INDEX sqlite_autoindex_product_bigram_1 (bigram=?)
-SEARCH p USING INTEGER PRIMARY KEY (rowid=?)
+FULLTEXT:  Full-text index search on products using ft_products_search (cost=0.35 rows=1)
+LIKE:      Table scan on products (cost=1003 rows=9786)
 ```
+
+数据量越大差距越明显：LIKE 是线性增长（扫全部行），FULLTEXT 是对数级（只扫匹配的行）。
 
 ---
 
@@ -149,19 +137,20 @@ SEARCH p USING INTEGER PRIMARY KEY (rowid=?)
 
 ### 服务端
 
+- **连接池**：`mysql2` 连接池，最多 10 个连接复用，避免频繁建连
 - **参数白名单化**：`sort` 只接受枚举值，`pageSize` 限制在 1–100，防止非法值进入 SQL 层
 - **LRU 缓存**：200 条容量、30s TTL，命中缓存与未命中时返回结构完全一致
 - **滑动窗口限流**：单 IP 10 秒内最多 120 次请求
 - **慢查询日志**：超过 50ms 的查询落库，用于持续观察索引效果
-- **参数化查询**：全程使用 `?` 占位符，无字符串拼接
-- **优雅关闭**：SIGINT/SIGTERM 时关闭连接
+- **参数化查询**：全程使用 `?` 占位符，无字符串拼接（防 SQL 注入）
+- **优雅关闭**：SIGINT/SIGTERM 时先关 HTTP 服务再关连接池
 
 ### 前端
 
 - **骨架屏**：loading 态用骨架屏而非转圈，感知更快
 - **批量渲染**：用 `DocumentFragment` 一次性插入，避免逐条 append 触发多次重排
 - **XSS 防护**：用户输入先转义再插入 DOM，关键词高亮顺序不可颠倒
-- **无障碍**：`aria-live` 播报结果数、`aria-busy` 标记加载态、键盘上下键与 Enter/Esc 支持、焦点可见、`prefers-reduced-motion` 降级
+- **无障碍**：`aria-live` 播报结果数、`aria-busy` 标记加载态、键盘 Enter/Esc 支持、焦点可见、`prefers-reduced-motion` 降级
 - **响应式**：4 档断点（980 / 680 / 380 px），移动端搜索框独占一行
 - **资源清理**：`destroy()` 取消防抖定时器、中止在途请求、移除事件监听
 
@@ -201,12 +190,12 @@ CI 配置了覆盖率阈值（语句 85% / 函数 85% / 分支 80%），不达�
 
 ## 接口
 
-| 方法 | 路径                         | 说明                                                         |
-| ---- | ---------------------------- | ------------------------------------------------------------ |
-| GET  | `/api/products`              | 搜索商品，支持 `keyword` `category` `sort` `page` `pageSize` |
-| GET  | `/api/products/stats`        | 分类统计                                                     |
-| GET  | `/api/products/slow-queries` | 慢查询日志                                                   |
-| GET  | `/api/health`                | 健康检查                                                     |
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/products` | 搜索商品，支持 `keyword` `category` `sort` `page` `pageSize` |
+| GET | `/api/products/stats` | 分类统计 |
+| GET | `/api/products/slow-queries` | 慢查询日志 |
+| GET | `/api/health` | 健康检查 |
 
 响应示例：
 
@@ -219,7 +208,7 @@ CI 配置了覆盖率阈值（语句 85% / 函数 85% / 分支 80%），不达�
     "page": 1,
     "pageSize": 20,
     "totalPages": 10,
-    "costMs": 0.46
+    "costMs": 5.14
   },
   "meta": { "cached": false, "cacheSize": 0 }
 }
@@ -232,16 +221,20 @@ CI 配置了覆盖率阈值（语句 85% / 函数 85% / 分支 80%），不达�
 ```
 ├── src/
 │   ├── core/
-│   │   ├── performance.js       # debounce / throttle / RequestSequencer
-│   │   └── search-controller.js # 搜索链路控制器
-│   ├── api/products.js          # 接口封装
-│   ├── components/search-page.js# 渲染层
+│   │   ├── performance.js        # debounce / throttle / RequestSequencer
+│   │   └── search-controller.js  # 搜索链路控制器
+│   ├── api/products.js           # 接口封装
+│   ├── components/search-page.js # 渲染层
 │   ├── styles/main.css
 │   └── main.js
 ├── server/
-│   ├── index.js                 # HTTP 服务
-│   └── db.js                    # 数据层与索引
-├── tests/                       # 单元测试
+│   ├── index.js                  # HTTP 服务
+│   ├── db.js                     # 数据层（MySQL 连接池 + 搜索查询）
+│   ├── seed.js                   # 种子数据脚本（灌入 1 万条商品）
+│   └── schema.sql                # 建库建表 SQL
+├── tests/                        # 单元测试
+├── .env                          # 数据库密码（不入 git）
+├── .env.example                  # 密码模板（入 git）
 └── .github/workflows/ci.yml
 ```
 
@@ -249,7 +242,6 @@ CI 配置了覆盖率阈值（语句 85% / 函数 85% / 分支 80%），不达�
 
 ## 可以继续做的
 
-- [ ] 接入 MySQL，替换 SQLite（当前 `node:sqlite` 为实验特性）
 - [ ] 搜索建议（输入前缀联想）
 - [ ] Elasticsearch 中文分词（`ik_smart`），支持拼音与纠错
 - [ ] 虚拟滚动，支撑万级结果列表

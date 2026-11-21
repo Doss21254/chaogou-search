@@ -4,3 +4,5 @@ coverage
 data
 *.log
 .DS_Store
+# .env 存放数据库密码，绝对不能提交到 git
+.env
