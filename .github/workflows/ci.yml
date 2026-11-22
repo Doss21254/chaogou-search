@@ -9,17 +9,36 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [22.x]
+
+    # MySQL service 容器：CI 环境里跑集成测试需要真实数据库
+    services:
+      mysql:
+        image: mysql:9
+        env:
+          MYSQL_ROOT_PASSWORD: test123456
+          MYSQL_DATABASE: chaogou_mall
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest123456"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: test123456
+      DB_NAME: chaogou_mall
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: 使用 Node.js ${{ matrix.node-version }}
+      - name: 使用 Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 22.x
           cache: npm
 
       - name: 安装依赖
@@ -31,8 +50,17 @@ jobs:
       - name: Prettier 格式检查
         run: npm run format:check
 
+      # 单元测试不需要数据库，先跑（覆盖率只统计 src/core）
       - name: 单元测试与覆盖率
-        run: npm run test:coverage
+        run: npm run test:unit -- --coverage
+
+      # 建库建表 + 灌数据（用 .env 里的凭据，CI 里走环境变量）
+      - name: 初始化数据库
+        run: npm run db:setup
+
+      # 集成测试连真实 MySQL，验证 SQL / 索引 / 分页
+      - name: 数据库集成测试
+        run: npm run test:integration
 
       - name: 构建产物
         run: npm run build

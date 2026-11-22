@@ -78,6 +78,25 @@ export function closeDatabase() {
   return pool?.end();
 }
 
+/**
+ * 验证数据库连接是否正常（发一条 SELECT 1）。
+ *
+ * 用在两个地方：
+ *   1. 服务启动时 —— 连不上就报错退出，不假装正常
+ *   2. /api/health —— 健康检查必须包含数据库，否则「HTTP 活着但 DB 挂了」无法发现
+ *
+ * @returns {Promise<boolean>} 连接正常返回 true，失败返回 false
+ */
+export async function pingDatabase() {
+  if (!pool) return false;
+  try {
+    await pool.query('SELECT 1');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ============================================================
 // 搜索
 // ============================================================

@@ -13,7 +13,7 @@
 
 import { createServer } from 'node:http';
 import { URL } from 'node:url';
-import { initDatabase, searchProducts, getStats, getSlowQueries, closeDatabase } from './db.js';
+import { initDatabase, searchProducts, getStats, getSlowQueries, closeDatabase, pingDatabase } from './db.js';
 
 // ============================================================
 // 配置
@@ -202,8 +202,17 @@ const server = createServer(async (req, res) => {
 
   try {
     // ---- 健康检查 ----
+    // 不只检查 HTTP 进程，还要检查数据库连接
+    // 否则「HTTP 活着但 DB 挂了」时健康检查仍然返回 ok，误导监控
     if (url.pathname === '/api/health') {
-      sendJson(res, 200, { ok: true, uptime: Math.round(process.uptime()), cacheSize: cache.size });
+      const dbOk = await pingDatabase();
+      const status = dbOk ? 200 : 503;
+      sendJson(res, status, {
+        ok: dbOk,
+        uptime: Math.round(process.uptime()),
+        cacheSize: cache.size,
+        database: dbOk ? 'connected' : 'disconnected',
+      });
       return;
     }
 
@@ -263,14 +272,37 @@ const server = createServer(async (req, res) => {
 // 启动与关闭
 // ============================================================
 
-// 创建数据库连接池
-initDatabase();
+/**
+ * 启动服务：先创建连接池 → 验证数据库连接 → 连得上才 listen
+ *
+ * 为什么不直接 listen？
+ *   如果数据库没启动或密码不对，HTTP 服务照常起来，
+ *   但第一个请求才会发现连不上——用户看到的是 500 错误。
+ *   启动时就验证，连不上直接报错退出，问题暴露在最早时刻。
+ */
+async function start() {
+  // 1. 创建连接池
+  initDatabase();
 
-server.listen(PORT, HOST, async () => {
-  const stats = await getStats();
-  console.log(`[潮购商城搜索服务] http://${HOST}:${PORT}`);
-  console.log(`[数据库] MySQL 已连接，载入 ${stats.total} 条商品，分类 ${stats.byCategory.length} 个`);
-});
+  // 2. 验证连接（发一条 SELECT 1）
+  const dbOk = await pingDatabase();
+  if (!dbOk) {
+    console.error('[启动失败] 数据库连接失败，请检查：');
+    console.error('  - MySQL 是否已启动');
+    console.error('  - .env 文件里的 DB_HOST / DB_PORT / DB_USER / DB_PASSWORD 是否正确');
+    console.error('  - 数据库 chaogou_mall 是否已创建（运行 npm run db:setup）');
+    process.exit(1);
+  }
+
+  // 3. 连接正常，启动 HTTP 服务
+  server.listen(PORT, HOST, async () => {
+    const stats = await getStats();
+    console.log(`[潮购商城搜索服务] http://${HOST}:${PORT}`);
+    console.log(`[数据库] MySQL 已连接，载入 ${stats.total} 条商品，分类 ${stats.byCategory.length} 个`);
+  });
+}
+
+start();
 
 /** 优雅关闭：收到终止信号时，先关 HTTP 服务再关数据库连接 */
 function shutdown() {

@@ -1,9 +1,18 @@
 -- ============================================================
 -- 潮购商城 · 建库建表脚本
--- 用法：mysql -uroot -p < server/schema.sql
+--
+-- ⚠️  警告：本脚本会先 DROP DATABASE 再重建！
+--    会删除 chaogou_mall 库里的所有数据，不可恢复。
+--    仅用于开发环境初始化，不要在生产环境运行。
+--
+-- 用法（推荐用 npm run db:setup，自动读取 .env 凭据）：
+--   npm run db:setup
+--
+-- 手动执行（需要自己填密码）：
+--   mysql -u你的用户名 -p < server/schema.sql
 -- ============================================================
 
--- 如果库已存在就删掉重建（开发阶段方便，生产环境千万别这么干）
+-- 删除旧库重建（开发阶段方便重跑，生产环境去掉这两行）
 DROP DATABASE IF EXISTS chaogou_mall;
 CREATE DATABASE chaogou_mall
   DEFAULT CHARACTER SET utf8mb4        -- utf8mb4 才能存 emoji 和生僻字，utf8 不行
