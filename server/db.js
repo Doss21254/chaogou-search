@@ -180,10 +180,12 @@ export async function searchProducts(query = {}) {
 
   // 超过 50ms 算慢查询，记进日志表，方便后续观察哪些查询需要优化
   if (costMs > 50) {
-    await pool.execute(
-      'INSERT INTO search_log (keyword, category, hit_count, cost_ms) VALUES (?, ?, ?, ?)',
-      [kw, category || null, total, Math.round(costMs * 100) / 100]
-    );
+    await pool.execute('INSERT INTO search_log (keyword, category, hit_count, cost_ms) VALUES (?, ?, ?, ?)', [
+      kw,
+      category || null,
+      total,
+      Math.round(costMs * 100) / 100,
+    ]);
   }
 
   // ---- 第 6 步：整理返回格式 ----

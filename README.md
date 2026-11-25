@@ -41,15 +41,15 @@ npm run build        # 生产构建
 
 ## 技术栈
 
-| 层 | 选型 | 说明 |
-| --- | --- | --- |
-| 前端 | 原生 ES Module + Vite | 不引入框架，聚焦搜索链路本身的实现 |
-| 后端 | Node.js 原生 `http` | 零框架依赖，可读性与可讲解性优先 |
-| 数据库 | MySQL 9.x + `mysql2` 连接池 | 生产级数据库，简历技术栈一致 |
-| 全文检索 | MySQL `FULLTEXT INDEX` + `ngram` 分词器 | 原生支持中文子串检索，一个索引搞定 |
-| 测试 | Vitest + v8 coverage | 27 个用例，核心模块覆盖率 89% |
-| 规范 | ESLint + Prettier + Husky + lint-staged | 提交前自动检查 |
-| CI | GitHub Actions | lint / format / test / build 四道关卡 |
+| 层       | 选型                                    | 说明                                  |
+| -------- | --------------------------------------- | ------------------------------------- |
+| 前端     | 原生 ES Module + Vite                   | 不引入框架，聚焦搜索链路本身的实现    |
+| 后端     | Node.js 原生 `http`                     | 零框架依赖，可读性与可讲解性优先      |
+| 数据库   | MySQL 9.x + `mysql2` 连接池             | 生产级数据库，简历技术栈一致          |
+| 全文检索 | MySQL `FULLTEXT INDEX` + `ngram` 分词器 | 原生支持中文子串检索，一个索引搞定    |
+| 测试     | Vitest + v8 coverage                    | 27 个用例，核心模块覆盖率 89%         |
+| 规范     | ESLint + Prettier + Husky + lint-staged | 提交前自动检查                        |
+| CI       | GitHub Actions                          | lint / format / test / build 四道关卡 |
 
 ---
 
@@ -117,9 +117,9 @@ MySQL 默认的全文索引按空格分词，中文没空格所以用不了。`n
 
 ### 实测对比（1 万条商品，各跑 100 次取平均）
 
-| 查询方式 | 平均耗时 | 说明 |
-| --- | --- | --- |
-| `LIKE '%蓝牙%'` | 2.60 ms | 全表扫描，扫描 9786 行 |
+| 查询方式           | 平均耗时    | 说明                     |
+| ------------------ | ----------- | ------------------------ |
+| `LIKE '%蓝牙%'`    | 2.60 ms     | 全表扫描，扫描 9786 行   |
 | `FULLTEXT + ngram` | **0.99 ms** | 全文索引搜索，只扫匹配行 |
 
 执行计划验证索引确实生效：
@@ -190,12 +190,12 @@ CI 配置了覆盖率阈值（语句 85% / 函数 85% / 分支 80%），不达�
 
 ## 接口
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/api/products` | 搜索商品，支持 `keyword` `category` `sort` `page` `pageSize` |
-| GET | `/api/products/stats` | 分类统计 |
-| GET | `/api/products/slow-queries` | 慢查询日志 |
-| GET | `/api/health` | 健康检查 |
+| 方法 | 路径                         | 说明                                                         |
+| ---- | ---------------------------- | ------------------------------------------------------------ |
+| GET  | `/api/products`              | 搜索商品，支持 `keyword` `category` `sort` `page` `pageSize` |
+| GET  | `/api/products/stats`        | 分类统计                                                     |
+| GET  | `/api/products/slow-queries` | 慢查询日志                                                   |
+| GET  | `/api/health`                | 健康检查                                                     |
 
 响应示例：
 

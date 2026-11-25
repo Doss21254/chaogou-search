@@ -157,7 +157,10 @@ describe.skipIf(!canConnect)('MySQL 集成测试', () => {
     );
     // MySQL 8+ 的 EXPLAIN 输出：每行是一个步骤
     // 查找包含 "full-text" 的步骤
-    const explainText = rows.map((r) => JSON.stringify(r)).join(' ').toLowerCase();
+    const explainText = rows
+      .map((r) => JSON.stringify(r))
+      .join(' ')
+      .toLowerCase();
     expect(explainText).toContain('full-text');
   });
 });
